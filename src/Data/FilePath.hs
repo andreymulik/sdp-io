@@ -76,9 +76,9 @@ isPathSep =  (\ c -> c == '/' || c == '\\')
 getPath :: IO [FilePath]
 getPath =
 #ifdef IS_POSIX
-    map (\ dir -> null dir ? "." $ dir) . splitBy (== ':') <$> getEnv "PATH"
+    map (\ dir -> null dir ? "." $ dir) . splitsBy (== ':') <$> getEnv "PATH"
 #else
-    select (null ?- literal) . splitBy (== ';') <$> getEnv "PATH"
+    select (null ?- literal) . splitsBy (== ';') <$> getEnv "PATH"
   where
     literal ('"' : (path :< '"')) = path
     literal         path          = path
@@ -153,7 +153,7 @@ pattern (:..) :: FilePath -> [String] -> FilePath
 pattern path :.. exts <- (splitExts -> (path, exts)) where (:..) = foldl (:.)
 
 splitExts :: FilePath -> (FilePath, [String])
-splitExts path@(dir :/ file) = case splitBy (== '.') file of
+splitExts path@(dir :/ file) = case splitsBy (== '.') file of
   (name : exts) -> (dir ++ name, exts)
   _             -> (path, [])
 
