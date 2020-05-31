@@ -13,12 +13,15 @@ module System.IO.Classes
 (
   -- * Export
   module System.IO.Handle,
+  module System.IO.Error,
   
   -- * Generalized path
   IsFilePath (..),
   
   -- * Generalized file
   IsFile (..),
+  
+  getContents, putContents,
   
   withFile, readFile, writeFile, appendFile,
   
@@ -38,6 +41,7 @@ import qualified System.IO as IO
 import Data.FilePath
 
 import Control.Exception
+import System.IO.Error
 
 default ()
 
@@ -76,7 +80,7 @@ class IsFilePath path
 
 --------------------------------------------------------------------------------
 
-{-
+{- |
   'IsFile' is a type class that represents the contents of a file.
   
   'IsFile' provides only basic read and write operations. It doesn't allow, for
@@ -113,6 +117,14 @@ class IsFile file
       it should return the original Handle settings.
     -}
     hPutContents :: Handle -> file -> IO ()
+
+-- | Just 'hGetContents' 'stdin'.
+getContents :: (IsFile file) => IO file
+getContents =  hGetContents stdin
+
+-- | Just 'hPutContents' 'stdout'.
+putContents :: (IsFile file) => file -> IO ()
+putContents =  hPutContents stdout
 
 --------------------------------------------------------------------------------
 
@@ -200,6 +212,4 @@ instance IsTextFile String
     hGetLine  = IO.hGetLine
     hPutStr   = IO.hPutStr
     hPutStrLn = IO.hPutStrLn
-
-
 
