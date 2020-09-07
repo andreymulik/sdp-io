@@ -18,7 +18,7 @@
 module Data.FilePath
 (
   -- * Separator predicates
-  FilePath,
+  FilePath, isPathSep, pattern PathSep,
   
   -- * @$PATH@
   getPath,
@@ -48,7 +48,7 @@ import Data.Char
 import Text.ParserCombinators.ReadPrec ( lift )
 import Text.ParserCombinators.ReadP
 
-import SDP.Internal.Read ( readMaybeBy )
+import Text.Read.SDP ( readMaybeBy )
 #endif
 
 import System.Environment
@@ -66,6 +66,13 @@ isPathSep :: Char -> Bool
 isPathSep =  (== '/')
 #else
 isPathSep =  (\ c -> c == '/' || c == '\\')
+#endif
+
+pattern PathSep :: Char
+#ifdef IS_POSIX
+pattern PathSep =  '/'
+#else
+pattern PathSep <- ((\ c -> c == '/' || c == '\\') -> True) where PathSep = '\\'
 #endif
 
 --------------------------------------------------------------------------------
@@ -99,6 +106,10 @@ getPath =
   > "file" :. ".xml" == "file.xml"
   > "/" :. "d" == "/.d"
   
+  Windows:
+  
+  > "\\\\share" :. ".txt" == "\\\\share\\.txt"
+  
   Split on the extension. Note that points are discarded.
   
   > ("file" :. "") <- "file"
@@ -109,17 +120,17 @@ getPath =
   > ("/directory/path" :. "ext") <- "/directory/path.ext"
   > ("file/path.txt.alice" :. "bob") <- "file/path.txt.alice.bob"
   
-  Windows:
+  Note that filenames starting with a @.@ are handled correctly:
   
-  > "\\\\share" :. ".txt" == "\\\\share\\.txt"
+  > (".bashrc" :. "") <- ".bashrc"
 -}
 pattern (:.) :: FilePath -> String -> FilePath
 pattern path :. ext <- (splitExt -> (path, ext)) where (:.) = addExt
 
 splitExt :: FilePath -> (String, String)
-splitExt path = null name ? (path, "") $ (dir ++ init name, ext)
+splitExt path = null name ? (path, "") $ (dir ++ name, ext)
   where
-    (name, ext) = breakr (== '.') file
+    (name, ext) = divideBy (== '.') file
     (dir, file) = dirName path
 
 addExt :: FilePath -> String -> FilePath
@@ -141,21 +152,32 @@ addExt (drive :\\ path) ext = drive :\\ (path ++ '.' : ext)
   
   Split on the extensions. Note that points are discarded.
   
-  > ("file" :. "") <- splitExt "file"
-  > ("out" :. "txt") <- "out.txt"
-  > ("/etc/pam.d/" :. "") <- "/etc/pam.d/"
-  > ("dir.d/fnya" :. "") <- "dir.d/fnya"
-  > ("dir.d/data" :. "bak") <- "dir.d/data.bak"
-  > ("/directory/path" :. "ext") <- "/directory/path.ext"
-  > ("file/path.txt.alice" :. "bob") <- "file/path.txt.alice.bob"
+  > ("file" :.. []) <- "file"
+  > ("out" :.. ["txt"]) <- "out.txt"
+  > ("/etc/pam.d/" :.. []) <- "/etc/pam.d/"
+  > ("dir.d/fnya" :.. []) <- "dir.d/fnya"
+  > ("dir.d/data" :.. ["bak"]) <- "dir.d/data.bak"
+  > ("/directory/path" :.. ["ext"]) <- "/directory/path.ext"
+  > ("file/path." :.. ["txt", "alice", "bob"]) <- "file/path.txt.alice.bob"
+  
+  This function separates the extensions and also considers the case when the
+  file name begins with a period.
+  
+  > splitExtensions "file/.path.txt.alice.bob" == ("file/", ".path.txt.alice.bob")
+  > ("file/.path" :.. [txt, alice, bob]) <- "file/.path.txt.alice.bob"
+  > splitExtensions ".bashrc" == ("", ".bashrc")
+  > (".bashrc" :.. []) <- ".bashrc"
 -}
 pattern (:..) :: FilePath -> [String] -> FilePath
 pattern path :.. exts <- (splitExts -> (path, exts)) where (:..) = foldl (:.)
 
 splitExts :: FilePath -> (FilePath, [String])
-splitExts path@(dir :/ file) = case splitsBy (== '.') file of
-  (name : exts) -> (dir ++ name, exts)
-  _             -> (path, [])
+splitExts path = case splitsBy (== '.') file' of
+    (name : exts) -> (dir ++ pt ++ name, exts)
+    _             -> (path, [])
+  where
+    (pt, file') = spanl (== '.') file
+    (dir, file) = dirName path
 
 --------------------------------------------------------------------------------
 
@@ -209,41 +231,17 @@ splitExts path@(dir :/ file) = case splitsBy (== '.') file of
   > "C:\\foo" :/ "C:bar" == "C:bar"
 -}
 pattern (:/) :: FilePath -> FilePath -> FilePath
-pattern dir :/ file <- (splitName -> (dir, file)) where (:/) = combine
+pattern dir :/ file <- (splitName -> (dir, file))
+  where
+    a :/ b@(drive :\\ _) = headIs isPathSep b || drive /= "" ? b $ combine a b
 
 splitName :: FilePath -> (FilePath, FilePath)
 splitName =  first (\ dir -> null dir ? "./" $ dir) . dirName
 
-combine :: FilePath -> FilePath -> FilePath
-combine a b@(drive :\\ _) = headIs isPathSep b || drive /= "" ? b $ combine' a b
-  where
-    headIs f es = es /= "" && f (head es)
-
 dirName :: FilePath -> (FilePath, FilePath)
 dirName (drive :\\ path) = (drive ++) `first` breakr isPathSep path
 
-{-# COMPLETE (://) #-}
-
--- | Splits/joins directories and a file name.
-pattern (://) :: [FilePath] -> FilePath -> FilePath
-pattern dirs :// file <- (splitDirs -> dirs :< file) where (://) = flip $ foldr (:/)
-
 --------------------------------------------------------------------------------
-
-{-# COMPLETE Dirs #-}
-
--- | Same as 'Path', but removes trailing path separators.
-pattern Dirs :: [FilePath] -> FilePath
-pattern Dirs dirs <- (splitDirs -> dirs) where Dirs = foldr (:/) []
-
-splitDirs :: FilePath -> [FilePath]
-splitDirs (Path paths) = stripSlash <$> paths
-  where
-    stripSlash (drive :\\ "") = drive
-    stripSlash path = not (lastIs isPathSep path) ? path $
-      case dropEnd isPathSep path of {"" -> [last path]; dir -> dir}
-    
-    lastIs f es = es /= "" && f (last es)
 
 {-# COMPLETE Path #-}
 
@@ -260,6 +258,25 @@ splitPath (drive :\\ path) = null drive ? f path $ drive : f path
         (a, b) = breakl isPathSep y
         (c, d) = spanl  isPathSep b
 
+{-# COMPLETE Dirs #-}
+
+-- | Same as 'Path', but removes trailing path separators.
+pattern Dirs :: [FilePath] -> FilePath
+pattern Dirs dirs <- (splitDirs -> dirs) where Dirs = foldr (:/) []
+
+splitDirs :: FilePath -> [FilePath]
+splitDirs =  map stripSlash . splitPath
+  where
+    stripSlash (drive :\\ "") = drive
+    stripSlash path = not (lastIs isPathSep path) ? path $
+      case dropEnd isPathSep path of {"" -> [last path]; dir -> dir}
+
+{-# COMPLETE (://) #-}
+
+-- | Splits/joins directories and a file name.
+pattern (://) :: [FilePath] -> FilePath -> FilePath
+pattern dirs :// file <- (splitDirs -> dirs :< file) where (://) = flip $ foldr (:/)
+
 --------------------------------------------------------------------------------
 
 {- Drive split and join. -}
@@ -267,7 +284,6 @@ splitPath (drive :\\ path) = null drive ? f path $ drive : f path
 {-# COMPLETE (:\\) #-}
 
 {- |
-  
   Windows:
   
   > "" :\\ "file" <- "file"
@@ -288,43 +304,72 @@ splitPath (drive :\\ path) = null drive ? f path $ drive : f path
   > "" :\\ "file" <- "file"
 -}
 pattern (:\\) :: FilePath -> FilePath -> FilePath
-pattern drive :\\ path <- (splitDrive -> (drive, path)) where (:\\) = combine'
+pattern drive :\\ path <- (splitDrive -> (drive, path)) where (:\\) = combine
 
-combine' :: FilePath -> FilePath -> FilePath
-combine' a b
+combine :: FilePath -> FilePath -> FilePath
+combine a b
   | null a = b
   | null b = a
   | isPathSep (last a) = a ++ b
 #ifdef IS_POSIX
   | True = a ++ '/' : b
 #else
-  | c : ":" <- a, driveLetter c = a ++ b
+  | c : ":" <- a, isLetter' c = a ++ b
   | True = a ++ '\\' : b
-
-driveLetter :: Char -> Bool
-driveLetter x = isAsciiLower x || isAsciiUpper x
 #endif
 
 splitDrive :: FilePath -> (FilePath, FilePath)
 #ifdef IS_POSIX
 splitDrive = spanl (== '/')
 #else
-splitDrive path = ("", path) `fromMaybe` readMaybeBy drive path -- nuff said
-  where
-    letter  = do c <- satisfy isLetter; void (char ':'); slash [c, ':'] <$> end
-    share   = do sep; sep; first ("\\\\" ++) <$> shareName
-    drive   = lift (letter <++ unc <++ share)
-    slash a = first (a ++) . span isPathSep
-    
-    unc = do sep; sep; void (char '?'); sep; long <++ short
-      where
-        long  = do ci "UNC"; sep; first ("\\\\?\\UNC\\" ++) <$> shareName
-        short = first ("\\\\?\\" ++) <$> letter
-    
-    shareName = (do x <- manyTill get sep; y <- end; return (x :< '\\', y)) <++ (do x <- end; return (x, ""))
-    
-    end = manyTill get eof
-    sep = void (satisfy isPathSep)
-    ci  = mapM_ $ \ c -> char (toLower c) <++ char (toUpper c)
+splitDrive path =
+  let drive = lift (letter <++ unc <++ share)
+  in  ("", path) `fromMaybe` readMaybeBy drive path
 #endif
+
+--------------------------------------------------------------------------------
+
+{- Windefs. -}
+
+#ifndef IS_POSIX
+
+unc :: ReadP (String, String)
+unc =  do sep; sep; void (char '?'); sep; long <++ short
+  where
+    long  = do ci "UNC"; sep; first ("\\\\?\\UNC\\" ++) <$> shareName
+    ci    = mapM_ $ \ c -> char (toLower c) <++ char (toUpper c)
+    short = first ("\\\\?\\" ++) <$> letter
+
+share :: ReadP (String, String)
+share =  do sep; sep; first ("\\\\" ++) <$> shareName
+
+shareName :: ReadP (String, String)
+shareName =  (do x <- manyTill get sep; y <- end; return (x :< '\\', y)) <++
+             (do x <- end; return (x, ""))
+
+letter :: ReadP (String, String)
+letter =  do c <- satisfy isLetter'; void (char ':'); slash [c, ':'] <$> end
+
+slash :: String -> String -> (String, String)
+slash a =  first (a ++) . span isPathSep
+
+end :: ReadP String
+end =  manyTill get eof
+
+sep :: ReadP ()
+sep =  void (satisfy isPathSep)
+
+isLetter' :: Char -> Bool
+isLetter' x = isAsciiLower x || isAsciiUpper x
+
+#endif
+
+--------------------------------------------------------------------------------
+
+headIs :: (Char -> Bool) -> String -> Bool
+headIs f es = not (null es) && f (head es)
+
+lastIs :: (Char -> Bool) -> String -> Bool
+lastIs f es = not (null es) && f (last es)
+
 
