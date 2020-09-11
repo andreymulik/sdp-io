@@ -28,7 +28,9 @@ module System.IO.Classes
   -- ** Text IO
   IsTextFile (..),
   
-  getLine, putStr, putStrLn
+  getLine, putStr, putStrLn,
+  
+  gets, puts
 )
 where
 
@@ -184,6 +186,14 @@ putStr =  hPutStr stdout
 -- | Same as @hPutStrLn stdout@.
 putStrLn :: (IsTextFile text) => text -> IO ()
 putStrLn =  hPutStrLn stdout
+
+-- | Short version of 'getLine'
+gets :: (IsTextFile text) => IO text
+gets =  getLine
+
+-- | Short version of 'purStrLn'
+puts :: (IsTextFile text) => text -> IO ()
+puts =  putStrLn
 
 --------------------------------------------------------------------------------
 
