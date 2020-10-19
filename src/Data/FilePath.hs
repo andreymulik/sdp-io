@@ -65,7 +65,7 @@ infixr 5 :/, :// -- like </>
 
 --------------------------------------------------------------------------------
 
--- Internal separator check.
+-- | Separator check.
 isPathSep :: Char -> Bool
 #ifdef IS_POSIX
 isPathSep =  (== '/')
@@ -73,6 +73,7 @@ isPathSep =  (== '/')
 isPathSep =  (\ c -> c == '/' || c == '\\')
 #endif
 
+-- | Default path separator.
 pattern PathSep :: Char
 #ifdef IS_POSIX
 pattern PathSep =  '/'
@@ -478,7 +479,7 @@ isAbsolute =  not . isRelative
 {- |
   Normalise a file name:
   * \/\/ outside of the drive can be made blank
-  * \/ -> 'pathSeparator'
+  * \/ -> 'PathSep'
   * .\/ -> \"\"
   
   > normalise "." == "."
@@ -691,5 +692,4 @@ repl =  \ f n -> map $ \ c -> f c ? n $ c
 
 double :: (a -> a -> b) -> a -> b
 double =  \ f x -> f x x
-
 

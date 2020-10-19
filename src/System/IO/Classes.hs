@@ -37,13 +37,13 @@ where
 import Prelude ()
 import SDP.SafePrelude
 
-import System.IO.Handle
-import qualified System.IO as IO
-
 import Data.FilePath
 
-import Control.Exception
+import qualified System.IO as IO
+import System.IO.Handle
 import System.IO.Error
+
+import Control.Exception
 
 default ()
 
