@@ -43,8 +43,6 @@ import Prelude ()
 import SDP.SafePrelude hiding ( many )
 import SDP.Linear
 
-import Data.Bifunctor
-import Data.Function
 import Data.Char
 
 #ifndef IS_POSIX
@@ -692,4 +690,6 @@ repl =  \ f n -> map $ \ c -> f c ? n $ c
 
 double :: (a -> a -> b) -> a -> b
 double =  \ f x -> f x x
+
+
 
