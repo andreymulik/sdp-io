@@ -33,6 +33,7 @@ Library
   
   build-depends:
     base         >= 4.12 && < 5,
+    fmr          >= 0.1  && < 1,
     sdp          >= 0.2  && < 0.3
   
   ghc-options: -O2 -Wall
@@ -42,4 +43,8 @@ Library
     System.IO.Handle
     
     Data.FilePath
+
+
+
+
 

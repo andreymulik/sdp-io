@@ -19,18 +19,10 @@ module System.IO.Classes
   IsFilePath (..),
   
   -- * Generalized file
-  IsFile (..),
-  
-  getContents, putContents,
-  
-  withFile, readFile, writeFile, appendFile,
+  IsFile (..), getContents, putContents, withFile, readFile, writeFile, appendFile,
   
   -- ** Text IO
-  IsTextFile (..),
-  
-  getLine, putStr, putStrLn,
-  
-  gets, puts
+  IsTextFile (..), getLine, putStr, putStrLn, gets, puts
 )
 where
 
@@ -62,7 +54,7 @@ class IsFilePath path
       * @isDoesNotExistError@ if the file does not exist
       * @isPermissionError@ if the user doesn't have permission to open the file
     -}
-    hOpen :: IOMode -> path -> IO Handle
+    hOpen :: (MonadIO io) => IOMode -> path -> io Handle
     hOpen mode path = hOpenWith mode path (BlockBuffering Nothing) False
     
     {- |
@@ -75,10 +67,10 @@ class IsFilePath path
       * 'isDoesNotExistError' if the file does not exist
       * 'isPermissionError' if the user doesn't have permission to open the file
     -}
-    hOpenWith :: IOMode -> path -> BufferMode -> Bool -> IO Handle
+    hOpenWith :: (MonadIO io) => IOMode -> path -> BufferMode -> Bool -> io Handle
     
     -- | Open new temp file 'Handle' by given source identifier.
-    hOpenTemp :: path -> IO (path, Handle)
+    hOpenTemp :: (MonadIO io) => path -> io (path, Handle)
 
 --------------------------------------------------------------------------------
 
@@ -105,7 +97,7 @@ class IsFile file
       
       * isEOFError if the end of file has been reached.
     -}
-    hGetContents :: Handle -> IO file
+    hGetContents :: (MonadIO io) => Handle -> io file
     
     {- |
       @hPutContents hdl file@ writes the @file@ contents to @hdl@.
@@ -118,14 +110,14 @@ class IsFile file
       If 'hPutContents' changes the recording mode (buffering, binary/text),
       it should return the original Handle settings.
     -}
-    hPutContents :: Handle -> file -> IO ()
+    hPutContents :: (MonadIO io) => Handle -> file -> io ()
 
 -- | Just 'hGetContents' 'stdin'.
-getContents :: (IsFile file) => IO file
+getContents :: (MonadIO io, IsFile file) => io file
 getContents =  hGetContents stdin
 
 -- | Just 'hPutContents' 'stdout'.
-putContents :: (IsFile file) => file -> IO ()
+putContents :: (MonadIO io, IsFile file) => file -> io ()
 putContents =  hPutContents stdout
 
 --------------------------------------------------------------------------------
@@ -138,8 +130,8 @@ putContents =  hPutContents stdout
   If closing the handle raises an exception, then this exception will be raised
   by withFile rather than any exception raised by act.
 -}
-withFile :: (IsFilePath path) => path -> IOMode -> (Handle -> IO a) -> IO a
-withFile path mode = bracket (hOpen mode path) hClose
+withFile :: (MonadIO io, IsFilePath path) => path -> IOMode -> (Handle -> IO a) -> io a
+withFile path mode = liftIO . bracket (hOpen mode path) hClose
 
 {- |
   The 'readFile' function reads a file and returns its contents.
@@ -147,15 +139,15 @@ withFile path mode = bracket (hOpen mode path) hClose
   The specifics of reading a file (laziness/strictness, possible exceptions)
   depend on the type of resource and the 'hGetContents' implementation.
 -}
-readFile :: (IsFilePath p, IsFile f) => p -> IO f
+readFile :: (MonadIO io, IsFilePath p, IsFile f) => p -> io f
 readFile =  hOpen ReadMode >=> hGetContents
 
 -- | @writeFile path file@ function writes the @file@ value, to the @path@.
-writeFile :: (IsFilePath p, IsFile f) => p -> f -> IO ()
+writeFile :: (MonadIO io, IsFilePath p, IsFile f) => p -> f -> io ()
 writeFile path file = withFile path WriteMode (`hPutContents` file)
 
 -- | @appendFile path file@ appends the @file@ value, to the @path@.
-appendFile :: (IsFilePath p, IsFile f) => p -> f -> IO ()
+appendFile :: (MonadIO io, IsFilePath p, IsFile f) => p -> f -> io ()
 appendFile path file = withFile path AppendMode (`hPutContents` file)
 
 --------------------------------------------------------------------------------
@@ -164,42 +156,42 @@ appendFile path file = withFile path AppendMode (`hPutContents` file)
 class (IsFile text) => IsTextFile text
   where
     -- | Read one text line from handle.
-    hGetLine :: Handle -> IO text
+    hGetLine :: (MonadIO io) => Handle -> io text
     
     -- | Put text to handle.
-    hPutStr   :: Handle -> text -> IO ()
+    hPutStr   :: (MonadIO io) => Handle -> text -> io ()
     
     -- | Put text line to handle.
-    hPutStrLn :: Handle -> text -> IO ()
+    hPutStrLn :: (MonadIO io) => Handle -> text -> io ()
     hPutStrLn hdl text = do hPutStr hdl text; hPutChar hdl '\n'
 
 --------------------------------------------------------------------------------
 
 -- | Same as @hGetLine stdin@.
-getLine :: (IsTextFile text) => IO text
+getLine :: (MonadIO io, IsTextFile text) => io text
 getLine =  hGetLine stdin
 
 -- | Same as @hPutStr stdout@.
-putStr :: (IsTextFile text) => text -> IO ()
+putStr :: (MonadIO io, IsTextFile text) => text -> io ()
 putStr =  hPutStr stdout
 
 -- | Same as @hPutStrLn stdout@.
-putStrLn :: (IsTextFile text) => text -> IO ()
+putStrLn :: (MonadIO io, IsTextFile text) => text -> io ()
 putStrLn =  hPutStrLn stdout
 
--- | Short version of 'getLine'
-gets :: (IsTextFile text) => IO text
+-- | Short version of 'getLine'.
+gets :: (MonadIO io, IsTextFile text) => io text
 gets =  getLine
 
--- | Short version of 'purStrLn'
-puts :: (IsTextFile text) => text -> IO ()
+-- | Short version of 'putStrLn'.
+puts :: (MonadIO io, IsTextFile text) => text -> io ()
 puts =  putStrLn
 
 --------------------------------------------------------------------------------
 
 instance IsFilePath FilePath
   where
-    hOpen = flip IO.openFile
+    hOpen = liftIO ... flip IO.openFile
     
     hOpenWith mode path buf bin = do
       h <- hOpen mode path
@@ -207,19 +199,17 @@ instance IsFilePath FilePath
       hSetBinaryMode h bin
       return h
     
-    hOpenTemp (dir :/ name) = do
-      (temp, hdl) <- IO.openTempFile dir name
-      
-      return (dir :/ temp, hdl)
+    hOpenTemp (dir :/ name) = liftIO $ first (dir :/) <$> IO.openTempFile dir name
 
 instance IsFile String
   where
-    hGetContents = IO.hGetContents
-    hPutContents = IO.hPutStr
+    hGetContents = liftIO  .  IO.hGetContents
+    hPutContents = liftIO ... IO.hPutStr
 
 instance IsTextFile String
   where
-    hGetLine  = IO.hGetLine
-    hPutStr   = IO.hPutStr
-    hPutStrLn = IO.hPutStrLn
+    hPutStrLn = liftIO ... IO.hPutStrLn
+    hGetLine  = liftIO  .  IO.hGetLine
+    hPutStr   = liftIO ... IO.hPutStr
+
 
