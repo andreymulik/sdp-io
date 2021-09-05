@@ -33,9 +33,9 @@ Library
   ghc-options:      -Wall -Wcompat
   
   build-depends:
-    base         >= 4.12 && < 5,
-    fmr          >= 0.2  && < 1,
-    sdp          >= 0.2  && < 1
+    base         >= 4.9 && < 5,
+    fmr          >= 0.2 && < 1,
+    sdp          >= 0.2 && < 1
   
   exposed-modules:
     System.IO.Classes
