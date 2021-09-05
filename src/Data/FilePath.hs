@@ -12,8 +12,8 @@
     Maintainer  :  work.a.mulik@gmail.com
     Portability :  non-portable (GHC extensions)
     
-    @Data.FilePath@ provides pattern synonyms similar to @System.FilePath@
-    functions. So you don't need the @filepath@ package, when use @sdp-io@.
+    "Data.FilePath" provides pattern synonyms similar to "System.FilePath"
+    functions.
 -}
 module Data.FilePath
 (
@@ -58,8 +58,8 @@ import System.Environment
 
 default ()
 
-infixr 7 :., :.. -- like <.>
-infixr 5 :/, :// -- like </>
+infixr 7 :., :.. -- same as <.>
+infixr 5 :/, :// -- same as </>
 
 --------------------------------------------------------------------------------
 
@@ -111,6 +111,7 @@ getPath =
   > "/" :. "d" == "/.d"
   
   Windows:
+  
   > "\\\\share" :. ".txt" == "\\\\share\\.txt"
   
   Split on the extension. Note that points are discarded.
@@ -197,9 +198,11 @@ splitExts path = case splitsBy (== '.') file' of
   > "./" :/ "bob" <- "bob"
   
   Posix:
+  
   > "/" :/ "" <- "/"
   
   Windows:
+  
   > "c:" :/ "" <- "c:"
   
   Combine two paths with a path separator.
@@ -210,6 +213,7 @@ splitExts path = case splitsBy (== '.') file' of
   > "directory" :/ "/file.ext" == "/file.ext"
   
   Posix:
+  
   > "/directory" :/ "file.ext" == "/directory/file.ext"
   > "/" :/ "tmp" == "/tmp"
   > "x:" :/ "foo" == "x:/foo"
@@ -217,6 +221,7 @@ splitExts path = case splitsBy (== '.') file' of
   > "home" :/ "user" == "home/user"
   
   Windows:
+  
   > "/directory" :/ "file.ext" == "/directory\\file.ext"
   > "C:\\foo" :/ "bar" == "C:\\foo\\bar"
   > "home" :/ "C:\\bob" == "C:\\bob"
@@ -249,11 +254,13 @@ dirName (drive :\\ path) = (drive ++) `first` breakr isPathSep path
   separators and file name (if any):
   
   Posix:
+  
   > Path ["/", "home/", "user/", ".ghci"] <- "/home/user/.ghci"
   > Path ["/", "home/", "user/"] <- "/home/user/"
   > Path ["/", "home/", "user"] <- "/home/user"
   
   Windows:
+  
   > Path ["C:\\", "home\\", "user\\"] <- "C:\\home\\user\\"
   > Path ["C:\\", "home\\", "user"] <- "C:\\home\\user"
   
@@ -278,11 +285,13 @@ splitPath (drive :\\ path) = null drive ? f path $ drive : f path
   separators and file name (if any):
   
   Posix:
+  
   > Dirs ["/", "home", "user", ".ghci"] <- "/home/user/.ghci"
   > Dirs ["/", "home", "user"] <- "/home/user/"
   > Dirs ["/", "home", "user"] <- "/home/user"
   
   Windows:
+  
   > Dirs ["C:\\", "home", "user"] <- "C:\\home\\user\\"
   > Dirs ["C:\\","home","user"] <- "C:\\home\\user"
   
@@ -312,6 +321,7 @@ pattern dirs :// file <- (splitDirs -> dirs :< file) where (://) = flip $ foldr 
 
 {- |
   Windows:
+  
   > "" :\\ "file" <- "file"
   > "c:/" :\\ "file" <- "c:/file"
   > "c:\\" :\\ "file" <- "c:\\file"
@@ -323,6 +333,7 @@ pattern dirs :// file <- (splitDirs -> dirs :< file) where (://) = flip $ foldr 
   > "" :\\ "/d" <- "/d"
   
   Posix:
+  
   > "/" :\\ "test" <- "/test"
   > "//" :\\ "test" <- "//test"
   > "" :\\ "test/file" <- "test/file"
@@ -362,10 +373,12 @@ splitDrive path =
   > isValid "\0" == False
   
   Posix:
+  
   > isValid "/random_ path:*" == True
   > isValid x => not (null x)
   
   Windows:
+  
   > isValid "c:\\test" == True
   > isValid "c:\\test:of_test" == False
   > isValid "test*" == False
@@ -403,6 +416,7 @@ isValid (drive :\\ path@(Dirs dirs)) = not $ or
   > makeValid "file\0name" == "file_name"
   
   Windows:
+  
   > makeValid "c:\\already\\/valid" == "c:\\already\\/valid"
   > makeValid "c:\\test:of_test" == "c:\\test_of_test"
   > makeValid "test*" == "test_"
@@ -437,6 +451,7 @@ makeValid (drive :\\ path@(Path paths))
   Is a path relative, or is it fixed to the root?
   
   Posix:
+  
   > isRelative "test/path" == True
   > isRelative "/test" == False
   > isRelative "/" == False
@@ -483,6 +498,7 @@ isAbsolute =  not . isRelative
   > normalise "." == "."
   
   Posix:
+  
   > normalise "/file/\\test////" == "/file/\\test/"
   > normalise "/file/./test" == "/file/test"
   > normalise "/test/file/../bob/fred/" == "/test/file/../bob/fred/"
@@ -497,6 +513,7 @@ isAbsolute =  not . isRelative
   > normalise "//home" == "/home"
   
   Windows:
+  
   > normalise "c:\\file/bob\\" == "C:\\file\\bob\\"
   > normalise "c:\\" == "C:\\"
   > normalise "C:.\\" == "C:"
@@ -586,6 +603,7 @@ dropSep xs = lastIs isPathSep xs && notDrive xs ? (null xs' ? [x] $ xs') $ xs
   > Valid x y => equalFilePath x y || (isRelative x && makeRelative y x == x) || equalFilePath (y </> makeRelative y x) x
   
   Posix:
+  
   > makeRelative "/Home" "/home/bob" == "/home/bob"
   > makeRelative "/home/" "/home/bob/foo/bar" == "bob/foo/bar"
   > makeRelative "/fred" "bob" == "bob"
@@ -594,6 +612,7 @@ dropSep xs = lastIs isPathSep xs && notDrive xs ? (null xs' ? [x] $ xs') $ xs
   > makeRelative "some/path" "some/path/a/b/c" == "a/b/c"
   
   Windows:
+  
   > makeRelative "C:\\Home" "c:\\home\\bob" == "bob"
   > makeRelative "C:\\Home" "c:/home/bob" == "bob"
   > makeRelative "C:\\Home" "D:\\Home\\Bob" == "D:\\Home\\Bob"
@@ -690,6 +709,7 @@ repl =  \ f n -> map $ \ c -> f c ? n $ c
 
 double :: (a -> a -> b) -> a -> b
 double =  \ f x -> f x x
+
 
 
 

@@ -7,7 +7,7 @@
     Maintainer  :  work.a.mulik@gmail.com
     Portability :  portable
     
-    @System.IO.Classes@ provides generalized path and file classes.
+    "System.IO.Classes" provides generalized path and file classes.
 -}
 module System.IO.Classes
 (
@@ -19,7 +19,8 @@ module System.IO.Classes
   IsFilePath (..),
   
   -- * Generalized file
-  IsFile (..), getContents, putContents, withFile, readFile, writeFile, appendFile,
+  IsFile (..), getContents, putContents, withFile,
+  readFile, writeFile, appendFile,
   
   -- ** Text IO
   IsTextFile (..), getLine, putStr, putStrLn, gets, puts
@@ -50,9 +51,9 @@ class IsFilePath path
       
       This operation may fail with:
       
-      * @isAlreadyInUseError@ if the file is already open and cannot be reopened
-      * @isDoesNotExistError@ if the file does not exist
-      * @isPermissionError@ if the user doesn't have permission to open the file
+      * 'isAlreadyInUseError' if the file is already open and cannot be reopened
+      * 'isDoesNotExistError' if the file doesn't exist
+      * 'isPermissionError' if the user doesn't have permission to open the file
     -}
     hOpen :: (MonadIO io) => IOMode -> path -> io Handle
     hOpen mode path = hOpenWith mode path (BlockBuffering Nothing) False
@@ -75,11 +76,14 @@ class IsFilePath path
 --------------------------------------------------------------------------------
 
 {- |
-  'IsFile' is a type class that represents the contents of a file.
+  'IsFile' is a type class that represents the contents of a file. 'IsFile' can
+  work with any type of content, but there are two important limitations: you
+  shouldn't use it to work with partial values and file types that can only
+  represent one value of a given type.
   
-  'IsFile' provides only basic read and write operations. It doesn't allow, for
-  example, changing the 'IOMode' or handle the concatenation of the file
-  contents with the appendable information.
+  For example, you shouldn't use 'IsFile' to work with XML (JSON, BSON, etc.).
+  But you can work with document streams (e.g. YAML), if you suddenly need
+  something like this.
 -}
 class IsFile file
   where
@@ -95,7 +99,7 @@ class IsFile file
       
       This operation may fail with:
       
-      * isEOFError if the end of file has been reached.
+      * 'isEOFError' if the end of file has been reached.
     -}
     hGetContents :: (MonadIO io) => Handle -> io file
     
@@ -211,5 +215,6 @@ instance IsTextFile String
     hPutStrLn = liftIO ... IO.hPutStrLn
     hGetLine  = liftIO  .  IO.hGetLine
     hPutStr   = liftIO ... IO.hPutStr
+
 
 

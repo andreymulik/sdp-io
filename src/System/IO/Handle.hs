@@ -118,7 +118,7 @@ hSetFileSize =  liftIO ... IO.hSetFileSize
 
 -- | File size 'Field'.
 fileSize :: (MonadIO io) => Field io Handle Integer
-fileSize =  hGetFileSize `sfield` hSetFileSize
+fileSize =  SField hGetFileSize hSetFileSize
 
 --------------------------------------------------------------------------------
 
@@ -178,7 +178,7 @@ hGetBuffering =  liftIO . IO.hGetBuffering
 
 -- | 'Handle' buffering 'Field'.
 hBuffering :: (MonadIO io) => Field io Handle BufferMode
-hBuffering =  hGetBuffering `sfield` hSetBuffering
+hBuffering =  SField hGetBuffering hSetBuffering
 
 --------------------------------------------------------------------------------
 
@@ -278,7 +278,7 @@ hGetEcho =  liftIO . IO.hGetEcho
 
 -- | Echo 'Field'.
 echo :: (MonadIO io) => Field io Handle Bool
-echo =  hGetEcho `sfield` hSetEcho
+echo =  SField hGetEcho hSetEcho
 
 --------------------------------------------------------------------------------
 
@@ -577,7 +577,7 @@ hGetEncoding =  liftIO . IO.hGetEncoding
 encoding :: (MonadIO io) => Field io Handle (Maybe TextEncoding)
 encoding =
   let setter hdl = hSetBinaryMode hdl True `maybe` hSetEncoding hdl
-  in  hGetEncoding `sfield` setter
+  in  SField hGetEncoding setter
 
 --------------------------------------------------------------------------------
 
