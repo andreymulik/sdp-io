@@ -118,7 +118,9 @@ hSetFileSize =  liftIO ... IO.hSetFileSize
 
 -- | File size 'Field'.
 fileSize :: (MonadIO io) => Field io Handle Integer
-fileSize =  SField hGetFileSize hSetFileSize
+fileSize =  Field hGetFileSize hSetFileSize
+  (\ record f -> do val <- f <$> hGetFileSize record; hSetFileSize record val; return val)
+  (\ record f -> do val <- f =<< hGetFileSize record; hSetFileSize record val; return val)
 
 --------------------------------------------------------------------------------
 
@@ -178,7 +180,9 @@ hGetBuffering =  liftIO . IO.hGetBuffering
 
 -- | 'Handle' buffering 'Field'.
 hBuffering :: (MonadIO io) => Field io Handle BufferMode
-hBuffering =  SField hGetBuffering hSetBuffering
+hBuffering =  Field hGetBuffering hSetBuffering
+  (\ record f -> do val <- f <$> hGetBuffering record; hSetBuffering record val; return val)
+  (\ record f -> do val <- f =<< hGetBuffering record; hSetBuffering record val; return val)
 
 --------------------------------------------------------------------------------
 
@@ -278,7 +282,9 @@ hGetEcho =  liftIO . IO.hGetEcho
 
 -- | Echo 'Field'.
 echo :: (MonadIO io) => Field io Handle Bool
-echo =  SField hGetEcho hSetEcho
+echo =  Field hGetEcho hSetEcho
+  (\ record f -> do val <- f <$> hGetEcho record; hSetEcho record val; return val)
+  (\ record f -> do val <- f =<< hGetEcho record; hSetEcho record val; return val)
 
 --------------------------------------------------------------------------------
 
@@ -559,7 +565,7 @@ mkTextEncoding =  liftIO . IO.mkTextEncoding
   'hSetEncoding' may need to flush buffered data in order to change the encoding
 -}
 hSetEncoding :: (MonadIO io) => Handle -> TextEncoding -> io ()
-hSetEncoding =  liftIO ... hSetEncoding
+hSetEncoding =  liftIO ... IO.hSetEncoding
 
 {- |
   Return the current 'TextEncoding' for the specified 'Handle', or 'Nothing' if
@@ -575,18 +581,18 @@ hGetEncoding =  liftIO . IO.hGetEncoding
 
 -- | Encoding 'Field', @set hdl [encoding := Nothing] = hSetBinaryMode hdl True@
 encoding :: (MonadIO io) => Field io Handle (Maybe TextEncoding)
-encoding =
-  let setter hdl = hSetBinaryMode hdl True `maybe` hSetEncoding hdl
-  in  SField hGetEncoding setter
+encoding =  Field hGetEncoding hSetEncoding'
+  (\ record f -> do val <- f <$> hGetEncoding record; hSetEncoding' record val; return val)
+  (\ record f -> do val <- f =<< hGetEncoding record; hSetEncoding' record val; return val)
+  where
+    hSetEncoding' record = hSetBinaryMode record True `maybe` hSetEncoding record
 
 --------------------------------------------------------------------------------
 
 {- |
   The function creates a temporary file in 'ReadWriteMode'. The created file
-  isn't deleted automatically, so you need to delete it manually.
-  
-  The file is created with permissions such that only the current user can
-  read/write it.
+  isn't deleted automatically, so you need to delete it manually. The file is
+  created with permissions such that only the current user can read/write it.
   
   With some exceptions (see below), the file will be created securely in the
   sense that an attacker should not be able to cause 'openTempFile' to overwrite
@@ -610,6 +616,5 @@ openTempFileWith' =  liftIO ... IO.openTempFileWithDefaultPermissions
 -- | Like 'openBinaryTempFile', but uses the default file permissions.
 openBinaryTempFile' :: (MonadIO io) => FilePath -> String -> io (FilePath, Handle)
 openBinaryTempFile' =  liftIO ... IO.openBinaryTempFileWithDefaultPermissions
-
 
 
