@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe, CPP #-}
+
 {- |
     Module      :  System.Handle
     Copyright   :  (c) Andrey Mulik 2020
@@ -120,7 +122,9 @@ hSetFileSize =  liftIO ... IO.hSetFileSize
 fileSize :: (MonadIO io) => Field io Handle Integer
 fileSize =  Field hGetFileSize hSetFileSize
   (\ record f -> do val <- f <$> hGetFileSize record; hSetFileSize record val; return val)
+#if MIN_VERSION_fmr(0,2,0)
   (\ record f -> do val <- f =<< hGetFileSize record; hSetFileSize record val; return val)
+#endif
 
 --------------------------------------------------------------------------------
 
@@ -182,7 +186,9 @@ hGetBuffering =  liftIO . IO.hGetBuffering
 hBuffering :: (MonadIO io) => Field io Handle BufferMode
 hBuffering =  Field hGetBuffering hSetBuffering
   (\ record f -> do val <- f <$> hGetBuffering record; hSetBuffering record val; return val)
+#if MIN_VERSION_fmr(0,2,0)
   (\ record f -> do val <- f =<< hGetBuffering record; hSetBuffering record val; return val)
+#endif
 
 --------------------------------------------------------------------------------
 
@@ -284,7 +290,9 @@ hGetEcho =  liftIO . IO.hGetEcho
 echo :: (MonadIO io) => Field io Handle Bool
 echo =  Field hGetEcho hSetEcho
   (\ record f -> do val <- f <$> hGetEcho record; hSetEcho record val; return val)
+#if MIN_VERSION_fmr(0,2,0)
   (\ record f -> do val <- f =<< hGetEcho record; hSetEcho record val; return val)
+#endif
 
 --------------------------------------------------------------------------------
 
@@ -583,7 +591,9 @@ hGetEncoding =  liftIO . IO.hGetEncoding
 encoding :: (MonadIO io) => Field io Handle (Maybe TextEncoding)
 encoding =  Field hGetEncoding hSetEncoding'
   (\ record f -> do val <- f <$> hGetEncoding record; hSetEncoding' record val; return val)
+#if MIN_VERSION_fmr(0,2,0)
   (\ record f -> do val <- f =<< hGetEncoding record; hSetEncoding' record val; return val)
+#endif
   where
     hSetEncoding' record = hSetBinaryMode record True `maybe` hSetEncoding record
 
