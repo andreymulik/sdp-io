@@ -2,7 +2,7 @@
 
 {- |
     Module      :  System.IO.Classes
-    Copyright   :  (c) Andrey Mulik 2020
+    Copyright   :  (c) Andrey Mulik 2020-2022
     License     :  BSD-style
     Maintainer  :  work.a.mulik@gmail.com
     Portability :  portable
@@ -19,7 +19,7 @@ module System.IO.Classes
   IsFilePath (..),
   
   -- * Generalized file
-  IsFile (..), getContents, putContents, withFile,
+  IsFile (..), getContents, putContents, fileContents, withFile,
   readFile, writeFile, appendFile,
   
   -- ** Text IO
@@ -31,6 +31,7 @@ import Prelude ()
 import SDP.SafePrelude
 
 import Data.FilePath
+import Data.Field
 
 import qualified System.IO as IO
 import System.IO.Handle
@@ -216,5 +217,9 @@ instance IsTextFile String
     hGetLine  = liftIO  .  IO.hGetLine
     hPutStr   = liftIO ... IO.hPutStr
 
+--------------------------------------------------------------------------------
 
+-- | @'fileContents' = 'sfield' 'readFile' 'writeFile'@.
+fileContents :: (IsFile file) => Field IO FilePath file
+fileContents =  sfield readFile writeFile
 
