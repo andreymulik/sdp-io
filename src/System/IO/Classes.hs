@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
+{-# LANGUAGE Trustworthy #-}
 
 {- |
     Module      :  System.IO.Classes
@@ -117,6 +118,8 @@ class IsFile file
     -}
     hPutContents :: (MonadIO io) => Handle -> file -> io ()
 
+--------------------------------------------------------------------------------
+
 -- | Just 'hGetContents' 'stdin'.
 getContents :: (MonadIO io, IsFile file) => io file
 getContents =  hGetContents stdin
@@ -222,4 +225,6 @@ instance IsTextFile String
 -- | @'fileContents' = 'sfield' 'readFile' 'writeFile'@.
 fileContents :: (IsFile file) => Field IO FilePath file
 fileContents =  sfield readFile writeFile
+
+
 
