@@ -1,5 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Trustworthy, CPP #-}
+
+#if MIN_VERSION_fmr(0,3,0)
+{-# LANGUAGE DataKinds #-}
+#endif
 
 {- |
     Module      :  System.IO.Classes
@@ -31,6 +35,8 @@ where
 import Prelude ()
 import SDP.SafePrelude
 
+import Data.Functor.Identity
+import Data.Default.Class
 import Data.FilePath
 import Data.Field
 
@@ -223,8 +229,26 @@ instance IsTextFile String
 --------------------------------------------------------------------------------
 
 -- | @'fileContents' = 'sfield' 'readFile' 'writeFile'@.
-fileContents :: (IsFile file) => Field IO FilePath file
+#if MIN_VERSION_fmr(0,3,0)
+fileContents :: (MonadIO io, IsFile file) => FieldT io '[GetA, SetA, ModifyA, ModifyMA] FilePath file
+fileContents =  def `Field` SomeProp (def `Prop` Identity modifierM)
+                    `Field` SomeProp (def `Prop` Identity modifier)
+                    `Field` SomeProp (def `Prop` Identity setter)
+                    `Field` SomeProp (def `Prop` Identity getter)
+  where
+    getter = AccessGet readFile
+    setter = AccessSet writeFile
+    
+    modifier = AccessModify $ \ hdl f -> liftIO $ do
+      size <- f <$> readFile hdl
+      size <$ writeFile hdl size
+    
+    modifierM = AccessModifyM $ \ hdl go -> do
+      size <- go =<< liftIO (readFile hdl)
+      size <$ liftIO (writeFile hdl size)
+#else
+fileContents :: (MonadIO io, IsFile file) => Field io FilePath file
 fileContents =  sfield readFile writeFile
-
+#endif
 
 

@@ -1,5 +1,9 @@
 {-# LANGUAGE Safe, CPP #-}
 
+#if MIN_VERSION_fmr(0,3,0)
+{-# LANGUAGE DataKinds #-}
+#endif
+
 {- |
     Module      :  System.Handle
     Copyright   :  (c) Andrey Mulik 2020
@@ -85,6 +89,8 @@ import System.IO
 
 import Foreign.Ptr ( Ptr )
 
+import Data.Functor.Identity
+import Data.Default.Class
 import Data.Field
 
 default ()
@@ -99,7 +105,7 @@ default ()
   If 'hClose' fails for any reason, any further operations (apart from 'hClose')
   on the handle will still fail as if @hdl@ had been successfully closed.
 -}
-hClose :: (MonadIO io) => Handle -> io ()
+hClose :: MonadIO io => Handle -> io ()
 hClose =  liftIO . IO.hClose
 
 --------------------------------------------------------------------------------
@@ -108,28 +114,48 @@ hClose =  liftIO . IO.hClose
   For a handle @hdl@ which attached to a physical file, @'fileSize' hdl@
   returns the size of that file in 8-bit bytes.
 -}
-hGetFileSize :: (MonadIO io) => Handle -> io Integer
+hGetFileSize :: MonadIO io => Handle -> io Integer
 hGetFileSize =  liftIO . IO.hFileSize
 
 {- |
   @'hSetFileSize' hdl size@ truncates the physical file with handle @hdl@ to
   @size@ bytes.
 -}
-hSetFileSize :: (MonadIO io) => Handle -> Integer -> io ()
+hSetFileSize :: MonadIO io => Handle -> Integer -> io ()
 hSetFileSize =  liftIO ... IO.hSetFileSize
 
 -- | File size 'Field'.
-fileSize :: (MonadIO io) => Field io Handle Integer
+#if MIN_VERSION_fmr(0,3,0)
+fileSize :: MonadIO io => FieldT io '[GetA, SetA, ModifyA, ModifyMA] Handle Integer
+fileSize =  def `Field` SomeProp (def `Prop` Identity modifierM)
+                `Field` SomeProp (def `Prop` Identity modifier)
+                `Field` SomeProp (def `Prop` Identity setter)
+                `Field` SomeProp (def `Prop` Identity getter)
+  where
+    getter = AccessGet (liftIO  .  IO.hFileSize)
+    setter = AccessSet (liftIO ... IO.hSetFileSize)
+    
+    modifier = AccessModify $ \ hdl f -> liftIO $ do
+      size <- f <$> liftIO (IO.hFileSize hdl)
+      size <$ liftIO (IO.hSetFileSize hdl size)
+    
+    modifierM = AccessModifyM $ \ hdl go -> do
+      size <- go =<< liftIO (IO.hFileSize hdl)
+      size <$ liftIO (IO.hSetFileSize hdl size)
+
+#else
+fileSize :: MonadIO io => Field io Handle Integer
 fileSize =  Field hGetFileSize hSetFileSize
   (\ record f -> do val <- f <$> hGetFileSize record; hSetFileSize record val; return val)
 #if MIN_VERSION_fmr(0,2,0)
   (\ record f -> do val <- f =<< hGetFileSize record; hSetFileSize record val; return val)
 #endif
+#endif
 
 --------------------------------------------------------------------------------
 
 -- | Computation 'isEOF' is equal to @'hIsEOF' 'stdin'@
-isEOF :: (MonadIO io) => io Bool
+isEOF :: MonadIO io => io Bool
 isEOF =  liftIO IO.isEOF
 
 {- |
@@ -140,7 +166,7 @@ isEOF =  liftIO IO.isEOF
   NOTE: 'hIsEOF' may block, because it has to attempt to read from the stream to
   determine whether there is any more data to be read.
 -}
-hIsEOF :: (MonadIO io) => Handle -> io Bool
+hIsEOF :: MonadIO io => Handle -> io Bool
 hIsEOF =  liftIO . IO.hIsEOF
 
 --------------------------------------------------------------------------------
@@ -156,7 +182,7 @@ hIsEOF =  liftIO . IO.hIsEOF
   exceeded. It is unspecified whether the characters in the buffer are discarded
   or retained under these circumstances.
 -}
-hFlush :: (MonadIO io) => Handle -> io ()
+hFlush :: MonadIO io => Handle -> io ()
 hFlush =  liftIO . IO.hFlush
 
 {- |
@@ -175,19 +201,39 @@ hFlush =  liftIO . IO.hFlush
   for reading or writing and the implementation does not allow the buffering
   mode to be changed.
 -}
-hSetBuffering :: (MonadIO io) => Handle -> BufferMode -> io ()
+hSetBuffering :: MonadIO io => Handle -> BufferMode -> io ()
 hSetBuffering =  liftIO ... IO.hSetBuffering
 
 -- | @'hGetBuffering' hdl@ returns the current buffering mode for @hdl@.
-hGetBuffering :: (MonadIO io) => Handle -> io BufferMode
+hGetBuffering :: MonadIO io => Handle -> io BufferMode
 hGetBuffering =  liftIO . IO.hGetBuffering
 
 -- | 'Handle' buffering 'Field'.
-hBuffering :: (MonadIO io) => Field io Handle BufferMode
+#if MIN_VERSION_fmr(0,3,0)
+hBuffering :: MonadIO io => FieldT io '[GetA, SetA, ModifyA, ModifyMA] Handle BufferMode
+hBuffering =  def `Field` SomeProp (def `Prop` Identity modifierM)
+                  `Field` SomeProp (def `Prop` Identity modifier)
+                  `Field` SomeProp (def `Prop` Identity setter)
+                  `Field` SomeProp (def `Prop` Identity getter)
+  where
+    getter = AccessGet (liftIO  .  hGetBuffering)
+    setter = AccessSet (liftIO ... hSetBuffering)
+    
+    modifier = AccessModify $ \ hdl f -> liftIO $ do
+      size <- f <$> liftIO (hGetBuffering hdl)
+      size <$ liftIO (hSetBuffering hdl size)
+    
+    modifierM = AccessModifyM $ \ hdl go -> do
+      size <- go =<< liftIO (hGetBuffering hdl)
+      size <$ liftIO (hSetBuffering hdl size)
+
+#else
+hBuffering :: MonadIO io => Field io Handle BufferMode
 hBuffering =  Field hGetBuffering hSetBuffering
   (\ record f -> do val <- f <$> hGetBuffering record; hSetBuffering record val; return val)
 #if MIN_VERSION_fmr(0,2,0)
   (\ record f -> do val <- f =<< hGetBuffering record; hSetBuffering record val; return val)
+#endif
 #endif
 
 --------------------------------------------------------------------------------
@@ -196,7 +242,7 @@ hBuffering =  Field hGetBuffering hSetBuffering
   @'hGetPosn' hdl@ returns the current I/O position of @hdl@ as a value of the
   abstract type @HandlePosn@.
 -}
-hGetPosn :: (MonadIO io) => Handle -> io HandlePosn
+hGetPosn :: MonadIO io => Handle -> io HandlePosn
 hGetPosn =  liftIO . IO.hGetPosn
 
 {- |
@@ -209,7 +255,7 @@ hGetPosn =  liftIO . IO.hGetPosn
   * 'System.IO.Error.isPermissionError' if a system resource limit would be
   exceeded.
 -}
-hSetPosn :: (MonadIO io) => HandlePosn -> io ()
+hSetPosn :: MonadIO io => HandlePosn -> io ()
 hSetPosn =  liftIO . IO.hSetPosn
 
 --------------------------------------------------------------------------------
@@ -234,7 +280,7 @@ hSetPosn =  liftIO . IO.hSetPosn
   * 'System.IO.Error.isPermissionError' if a system resource limit would be
   exceeded.
 -}
-hSeek :: (MonadIO io) => Handle -> IO.SeekMode -> Integer -> io ()
+hSeek :: MonadIO io => Handle -> IO.SeekMode -> Integer -> io ()
 hSeek hdl = liftIO ... IO.hSeek hdl
 
 {- |
@@ -247,51 +293,71 @@ hSeek hdl = liftIO ... IO.hSeek hdl
   
   * 'System.IO.Error.isIllegalOperationError' if the Handle isn't seekable.
 -}
-hTell :: (MonadIO io) => Handle -> io Integer
+hTell :: MonadIO io => Handle -> io Integer
 hTell =  liftIO . IO.hTell
 
 --------------------------------------------------------------------------------
 
 -- | Same as 'IO.hIsOpen'.
-hIsOpen :: (MonadIO io) => Handle -> io Bool
+hIsOpen :: MonadIO io => Handle -> io Bool
 hIsOpen =  liftIO . IO.hIsOpen
 
 -- | Same as 'IO.hIsClosed'.
-hIsClosed :: (MonadIO io) => Handle -> io Bool
+hIsClosed :: MonadIO io => Handle -> io Bool
 hIsClosed =  liftIO . IO.hIsClosed
 
 -- | Same as 'IO.hIsReadable'.
-hIsReadable :: (MonadIO io) => Handle -> io Bool
+hIsReadable :: MonadIO io => Handle -> io Bool
 hIsReadable =  liftIO . IO.hIsReadable
 
 -- | Same as 'IO.hIsWritable'.
-hIsWritable :: (MonadIO io) => Handle -> io Bool
+hIsWritable :: MonadIO io => Handle -> io Bool
 hIsWritable =  liftIO . IO.hIsWritable
 
 -- | Same as 'IO.hIsSeekable'.
-hIsSeekable :: (MonadIO io) => Handle -> io Bool
+hIsSeekable :: MonadIO io => Handle -> io Bool
 hIsSeekable =  liftIO . IO.hIsSeekable
 
 --------------------------------------------------------------------------------
 
 -- | Is the handle connected to a terminal?
-hIsTerminalDevice :: (MonadIO io) => Handle -> io Bool
+hIsTerminalDevice :: MonadIO io => Handle -> io Bool
 hIsTerminalDevice =  liftIO . IO.hIsTerminalDevice
 
 -- | Set the echoing status of a handle connected to a terminal.
-hSetEcho :: (MonadIO io) => Handle -> Bool -> io ()
+hSetEcho :: MonadIO io => Handle -> Bool -> io ()
 hSetEcho =  liftIO ... IO.hSetEcho
 
 -- | Get the echoing status of a handle connected to a terminal.
-hGetEcho :: (MonadIO io) => Handle -> io Bool
+hGetEcho :: MonadIO io => Handle -> io Bool
 hGetEcho =  liftIO . IO.hGetEcho
 
 -- | Echo 'Field'.
-echo :: (MonadIO io) => Field io Handle Bool
+#if MIN_VERSION_fmr(0,3,0)
+echo :: MonadIO io => FieldT io '[GetA, SetA, ModifyA, ModifyMA] Handle Bool
+echo =  def `Field` SomeProp (def `Prop` Identity modifierM)
+            `Field` SomeProp (def `Prop` Identity modifier)
+            `Field` SomeProp (def `Prop` Identity setter)
+            `Field` SomeProp (def `Prop` Identity getter)
+  where
+    getter = AccessGet (liftIO  .  hGetEcho)
+    setter = AccessSet (liftIO ... hSetEcho)
+    
+    modifier = AccessModify $ \ hdl f -> liftIO $ do
+      size <- f <$> liftIO (hGetEcho hdl)
+      size <$ liftIO (hSetEcho hdl size)
+    
+    modifierM = AccessModifyM $ \ hdl go -> do
+      size <- go =<< liftIO (hGetEcho hdl)
+      size <$ liftIO (hSetEcho hdl size)
+
+#else
+echo :: MonadIO io => Field io Handle Bool
 echo =  Field hGetEcho hSetEcho
   (\ record f -> do val <- f <$> hGetEcho record; hSetEcho record val; return val)
 #if MIN_VERSION_fmr(0,2,0)
   (\ record f -> do val <- f =<< hGetEcho record; hSetEcho record val; return val)
+#endif
 #endif
 
 --------------------------------------------------------------------------------
@@ -315,7 +381,7 @@ echo =  Field hGetEcho hSetEcho
   @'hWaitForInput' hdl t where t >= 0@ will block all other Haskell threads for
   the duration of the call. It behaves like a safe foreign call in this respect.
 -}
-hWaitForInput :: (MonadIO io) => Handle -> Int -> io Bool
+hWaitForInput :: MonadIO io => Handle -> Int -> io Bool
 hWaitForInput =  liftIO ... IO.hWaitForInput
 
 {- |
@@ -326,7 +392,7 @@ hWaitForInput =  liftIO ... IO.hWaitForInput
   
   * 'System.IO.Error.isEOFError' if the end of file has been reached.
 -}
-hReady :: (MonadIO io) => Handle -> io Bool
+hReady :: MonadIO io => Handle -> io Bool
 hReady =  liftIO . IO.hReady
 
 {- |
@@ -337,7 +403,7 @@ hReady =  liftIO . IO.hReady
   
   * 'System.IO.Error.isEOFError' if the end of file has been reached.
 -}
-hLookAhead :: (MonadIO io) => Handle -> io Char
+hLookAhead :: MonadIO io => Handle -> io Char
 hLookAhead =  liftIO . IO.hLookAhead
 
 --------------------------------------------------------------------------------
@@ -350,7 +416,7 @@ hLookAhead =  liftIO . IO.hLookAhead
   
   * 'System.IO.Error.isEOFError' if the end of file has been reached.
 -}
-hGetChar :: (MonadIO io) => Handle -> io Char
+hGetChar :: MonadIO io => Handle -> io Char
 hGetChar =  liftIO . IO.hGetChar
 
 {- |
@@ -364,15 +430,15 @@ hGetChar =  liftIO . IO.hGetChar
   be exceeded
   * 'System.IO.Error.isFullError' if the device is full
 -}
-hPutChar :: (MonadIO io) => Handle -> Char -> io ()
+hPutChar :: MonadIO io => Handle -> Char -> io ()
 hPutChar =  liftIO ... IO.hPutChar
 
 -- | Read a character from the standard input device, @'hGetChar' 'stdin'@.
-getChar :: (MonadIO io) => io Char
+getChar :: MonadIO io => io Char
 getChar =  liftIO IO.getChar
 
 -- | Write a character to the standard output device @'hPutChar' 'stdout'@.
-putChar :: (MonadIO io) => Char -> io ()
+putChar :: MonadIO io => Char -> io ()
 putChar =  liftIO . IO.putChar
 
 --------------------------------------------------------------------------------
@@ -383,7 +449,7 @@ putChar =  liftIO . IO.putChar
   This has the same effect as calling 'hSetEncoding' with 'char8', together with
   'hSetNewlineMode' with 'noNewlineTranslation'.
 -}
-hSetBinaryMode :: (MonadIO io) => Handle -> Bool -> io ()
+hSetBinaryMode :: MonadIO io => Handle -> Bool -> io ()
 hSetBinaryMode =  liftIO ... IO.hSetBinaryMode
 
 {- |
@@ -392,7 +458,7 @@ hSetBinaryMode =  liftIO ... IO.hSetBinaryMode
   closed on exit from 'withBinaryFile', whether by normal termination or by
   raising an exception.
 -}
-withBinaryFile :: (MonadIO io) => FilePath -> IOMode -> (Handle -> IO r) -> io r
+withBinaryFile :: MonadIO io => FilePath -> IOMode -> (Handle -> IO r) -> io r
 withBinaryFile path = liftIO ... IO.withBinaryFile path
 
 {- |
@@ -403,7 +469,7 @@ withBinaryFile path = liftIO ... IO.withBinaryFile path
   text mode treats control-Z as EOF. Binary mode turns off all special treatment
   of end-of-line and end-of-file characters.
 -}
-openBinaryFile :: (MonadIO io) => FilePath -> IOMode -> io Handle
+openBinaryFile :: MonadIO io => FilePath -> IOMode -> io Handle
 openBinaryFile =  liftIO ... IO.openBinaryFile
 
 --------------------------------------------------------------------------------
@@ -423,7 +489,7 @@ openBinaryFile =  liftIO ... IO.openBinaryFile
   'hGetBuf' ignores the prevailing 'TextEncoding' and 'NewlineMode' on the
   'Handle', and reads bytes directly.
 -}
-hGetBuf :: (MonadIO io) => Handle -> Ptr a -> Int -> io Int
+hGetBuf :: MonadIO io => Handle -> Ptr a -> Int -> io Int
 hGetBuf hdl = liftIO ... IO.hGetBuf hdl
 
 {- |
@@ -443,7 +509,7 @@ hGetBuf hdl = liftIO ... IO.hGetBuf hdl
   'hGetBufSome' ignores the prevailing 'TextEncoding' and 'NewlineMode' on the
   'Handle', and reads bytes directly.
 -}
-hGetBufSome :: (MonadIO io) => Handle -> Ptr a -> Int -> io Int
+hGetBufSome :: MonadIO io => Handle -> Ptr a -> Int -> io Int
 hGetBufSome hdl = liftIO ... IO.hGetBufSome hdl
 
 {- |
@@ -460,7 +526,7 @@ hGetBufSome hdl = liftIO ... IO.hGetBufSome hdl
   asked to ignore SIGPIPE, then a SIGPIPE may be delivered instead, whose
   default action is to terminate the program).
 -}
-hPutBuf :: (MonadIO io) => Handle -> Ptr a -> Int -> io ()
+hPutBuf :: MonadIO io => Handle -> Ptr a -> Int -> io ()
 hPutBuf hdl = liftIO ... IO.hPutBuf hdl
 
 {- |
@@ -482,7 +548,7 @@ hPutBuf hdl = liftIO ... IO.hPutBuf hdl
   NOTE: on Windows, this function doesn't work correctly; it behaves
   identically to 'hGetBuf'.
 -}
-hPutBufNonBlocking :: (MonadIO io) => Handle -> Ptr a -> Int -> io Int
+hPutBufNonBlocking :: MonadIO io => Handle -> Ptr a -> Int -> io Int
 hPutBufNonBlocking hdl = liftIO ... IO.hPutBufNonBlocking hdl
 
 {- |
@@ -504,7 +570,7 @@ hPutBufNonBlocking hdl = liftIO ... IO.hPutBufNonBlocking hdl
   NOTE: on Windows, this function doesn't work correctly; it behaves identically
   to 'hGetBuf'.
 -}
-hGetBufNonBlocking :: (MonadIO io) => Handle -> Ptr a -> Int -> io Int
+hGetBufNonBlocking :: MonadIO io => Handle -> Ptr a -> Int -> io Int
 hGetBufNonBlocking hdl = liftIO ... IO.hGetBufNonBlocking hdl
 
 --------------------------------------------------------------------------------
@@ -513,7 +579,7 @@ hGetBufNonBlocking hdl = liftIO ... IO.hGetBufNonBlocking hdl
   Set the 'NewlineMode' on the specified Handle. All buffered data is flushed
   first.
 -}
-hSetNewlineMode :: (MonadIO io) => Handle -> NewlineMode -> io ()
+hSetNewlineMode :: MonadIO io => Handle -> NewlineMode -> io ()
 hSetNewlineMode =  liftIO ... IO.hSetNewlineMode
 
 {- |
@@ -559,7 +625,7 @@ hSetNewlineMode =  liftIO ... IO.hSetNewlineMode
   On Windows, you can access supported code pages with the prefix CP; for
   example, "CP1250".
 -}
-mkTextEncoding :: (MonadIO io) => String -> io TextEncoding
+mkTextEncoding :: MonadIO io => String -> io TextEncoding
 mkTextEncoding =  liftIO . IO.mkTextEncoding
 
 {- |
@@ -572,7 +638,7 @@ mkTextEncoding =  liftIO . IO.mkTextEncoding
   
   'hSetEncoding' may need to flush buffered data in order to change the encoding
 -}
-hSetEncoding :: (MonadIO io) => Handle -> TextEncoding -> io ()
+hSetEncoding :: MonadIO io => Handle -> TextEncoding -> io ()
 hSetEncoding =  liftIO ... IO.hSetEncoding
 
 {- |
@@ -584,11 +650,32 @@ hSetEncoding =  liftIO ... IO.hSetEncoding
   is @UTF-16@, then using 'hGetEncoding' and 'hSetEncoding' to save and restore
   the encoding may result in an extra byte-order-mark being written to the file.
 -}
-hGetEncoding :: (MonadIO io) => Handle -> io (Maybe TextEncoding)
+hGetEncoding :: MonadIO io => Handle -> io (Maybe TextEncoding)
 hGetEncoding =  liftIO . IO.hGetEncoding
 
 -- | Encoding 'Field', @set hdl [encoding := Nothing] = hSetBinaryMode hdl True@
-encoding :: (MonadIO io) => Field io Handle (Maybe TextEncoding)
+#if MIN_VERSION_fmr(0,3,0)
+encoding :: MonadIO io => FieldT io '[GetA, SetA, ModifyA, ModifyMA] Handle (Maybe TextEncoding)
+encoding =  def `Field` SomeProp (def `Prop` Identity modifierM)
+                `Field` SomeProp (def `Prop` Identity modifier)
+                `Field` SomeProp (def `Prop` Identity setter)
+                `Field` SomeProp (def `Prop` Identity getter)
+  where
+    getter = AccessGet (liftIO  .  hGetEncoding)
+    setter = AccessSet (liftIO ... hSetEncoding')
+    
+    modifier = AccessModify $ \ hdl f -> liftIO $ do
+      size <- f <$> liftIO (hGetEncoding hdl)
+      size <$ liftIO (hSetEncoding' hdl size)
+    
+    modifierM = AccessModifyM $ \ hdl go -> do
+      size <- go =<< liftIO (hGetEncoding hdl)
+      size <$ liftIO (hSetEncoding' hdl size)
+
+    hSetEncoding' record = hSetBinaryMode record True `maybe` hSetEncoding record
+
+#else
+encoding :: MonadIO io => Field io Handle (Maybe TextEncoding)
 encoding =  Field hGetEncoding hSetEncoding'
   (\ record f -> do val <- f <$> hGetEncoding record; hSetEncoding' record val; return val)
 #if MIN_VERSION_fmr(0,2,0)
@@ -596,6 +683,7 @@ encoding =  Field hGetEncoding hSetEncoding'
 #endif
   where
     hSetEncoding' record = hSetBinaryMode record True `maybe` hSetEncoding record
+#endif
 
 --------------------------------------------------------------------------------
 
@@ -612,19 +700,20 @@ encoding =  Field hGetEncoding hSetEncoding'
   that O_EXCL is sometimes not supported on NFS filesystems, so if you rely on
   this behaviour it is best to use local filesystems only.
 -}
-openTempFile :: (MonadIO io) => FilePath -> String -> io (FilePath, Handle)
+openTempFile :: MonadIO io => FilePath -> String -> io (FilePath, Handle)
 openTempFile =  liftIO ... IO.openTempFile
 
 -- | Like 'openTempFile', but opens the file in binary mode.
-openBinaryTempFile :: (MonadIO io) => FilePath -> String -> io (FilePath, Handle)
+openBinaryTempFile :: MonadIO io => FilePath -> String -> io (FilePath, Handle)
 openBinaryTempFile =  liftIO ... IO.openBinaryTempFile
 
 -- | Like 'openTempFile', but uses the default file permissions.
-openTempFileWith' :: (MonadIO io) => FilePath -> String -> io (FilePath, Handle)
+openTempFileWith' :: MonadIO io => FilePath -> String -> io (FilePath, Handle)
 openTempFileWith' =  liftIO ... IO.openTempFileWithDefaultPermissions
 
 -- | Like 'openBinaryTempFile', but uses the default file permissions.
-openBinaryTempFile' :: (MonadIO io) => FilePath -> String -> io (FilePath, Handle)
+openBinaryTempFile' :: MonadIO io => FilePath -> String -> io (FilePath, Handle)
 openBinaryTempFile' =  liftIO ... IO.openBinaryTempFileWithDefaultPermissions
+
 
 
